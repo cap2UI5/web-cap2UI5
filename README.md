@@ -56,6 +56,16 @@ and deploys it to GitHub Pages
 (repo settings → Pages → Source **"GitHub Actions"**; the workflow enables
 this automatically on first run where the token is allowed to).
 
+Before deploying, the workflow commits the built site to the
+[`site-history`](https://github.com/cap2UI5/web-cap2UI5/tree/site-history)
+branch — one commit per deployment, carrying the upstream sha, the tooling
+sha and a link to the workflow run. That branch is the audit trail of what
+was actually deployed: `git log` lists every deployment,
+`git diff <old>..<new>` shows exactly which files changed between two of
+them. Identical rebuilds (e.g. the weekly cron without upstream changes)
+add no commit. The branch is written only by the workflow — don't push to
+it by hand.
+
 Upstream changes arrive event-driven: after every update, the
 `7_trigger_web` step of the sync pipeline in
 [cap2UI5](https://github.com/cap2UI5/cap2UI5) writes the upstream sha to
@@ -87,7 +97,8 @@ npm run serve     # local test server on http://localhost:8080
 | `dev-server.mjs` | dependency-free static server for local testing |
 
 `input/`, `generated/` and `dist/` are build state (gitignored) — the repo
-holds only the tooling; the site itself lives in the Pages deployment.
+holds only the tooling; the site itself lives in the Pages deployment, its
+deployment-by-deployment history on the `site-history` branch.
 
 Two build details worth knowing:
 
