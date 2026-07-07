@@ -8,8 +8,13 @@ name: build web
 # commits cap2UI5's sync pipeline pushes here via deploy key (its
 # 7_trigger_web workflow updates UPSTREAM_HEAD after each upstream
 # change), so the site follows every cap2UI5 update — plus changes to the
-# build tooling itself. The weekly cron remains as a safety net. No loop:
-# this workflow never pushes to the repo.
+# build tooling itself. The weekly cron remains as a safety net.
+#
+# Before deploying, the built site is committed to the `site-history`
+# branch — one commit per deployment, so `git log`/`git diff` on that
+# branch shows exactly what changed between two deployments. No loop:
+# the workflow pushes only to site-history, and the push trigger above
+# is restricted to main.
 
 on:
   push:
@@ -28,6 +33,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the built site to the site-history branch
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -38,6 +45,44 @@ jobs:
       - run: npm run build
       - name: report upstream revision
         run: echo "built from cap2UI5/cap2UI5@$(cat input/cap2UI5/UPSTREAM_COMMIT)" >> "$GITHUB_STEP_SUMMARY"
+      # Snapshot the exact files that are about to be deployed onto the
+      # site-history branch — one commit per deployment. The branch never
+      # triggers this workflow (push trigger is main-only), so no loop.
+      # Identical rebuilds (e.g. the weekly cron with no upstream change)
+      # produce no commit. The `pages` concurrency group serializes runs,
+      # so pushes to site-history cannot race each other.
+      - name: record deployment in site-history branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          UPSTREAM=$(cat input/cap2UI5/UPSTREAM_COMMIT)
+          HISTORY="$RUNNER_TEMP/site-history"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git fetch origin site-history; then
+            git worktree add -B site-history "$HISTORY" FETCH_HEAD
+          else
+            # first run: start the branch with no parent history
+            git worktree add --detach "$HISTORY"
+            git -C "$HISTORY" checkout --orphan site-history
+            git -C "$HISTORY" rm -rfq . 2>/dev/null || true
+          fi
+
+          find "$HISTORY" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a dist/. "$HISTORY"/
+          cd "$HISTORY"
+          git add -A
+          if git rev-parse -q --verify HEAD >/dev/null && git diff --cached --quiet; then
+            echo "site unchanged — no history commit" >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "deploy: built from cap2UI5/cap2UI5@${UPSTREAM}" \
+              -m "tooling: ${GITHUB_SHA}" \
+              -m "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            git push -u origin site-history
+            echo "deployment recorded on site-history: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: cap2ui5-web
