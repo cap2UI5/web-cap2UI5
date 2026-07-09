@@ -135,7 +135,24 @@ fs.cpSync(WEBAPP, DIST, { recursive: true });
 // fires its first roundtrip.
 const indexFile = path.join(DIST, "index.html");
 const marker = "<script";
-const html = fs.readFileSync(indexFile, "utf8");
+let html = fs.readFileSync(indexFile, "utf8");
+
+// The upstream webapp boots UI5 from the server-absolute path
+// "/resources/sap-ui-core.js" — on the CAP server /resources is proxied to
+// UI5, but the static site has no such server. Served from a project
+// subpath on GitHub Pages that URL resolves to <origin>/resources/... and
+// 404s, so UI5 never loads and the page stays blank. Repoint the bootstrap
+// at the public UI5 CDN so the shell loads standalone from any static host.
+const BOOTSTRAP_LOCAL_SRC = 'src="/resources/sap-ui-core.js"';
+const UI5_CDN_SRC = 'src="https://ui5.sap.com/resources/sap-ui-core.js"';
+if (html.includes(BOOTSTRAP_LOCAL_SRC)) {
+  html = html.replace(BOOTSTRAP_LOCAL_SRC, UI5_CDN_SRC);
+} else if (!html.includes(UI5_CDN_SRC)) {
+  throw new Error(
+    `index.html: UI5 bootstrap ${BOOTSTRAP_LOCAL_SRC} not found — cannot repoint it at the CDN`,
+  );
+}
+
 const idx = html.indexOf(marker);
 if (idx < 0) throw new Error("index.html: no <script> tag found to anchor the bundle injection");
 const injected =
