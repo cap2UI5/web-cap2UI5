@@ -2,7 +2,7 @@ name: build web
 
 # Rebuild of the static cap2UI5 browser site: mirror the upstream cap2UI5
 # repo, bundle backend + samples + frontend, and publish the result to the
-# dedicated build repo cap2UI5/web-cap2UI5-built. The build is also uploaded
+# dedicated build repo cap2UI5/web-cap2UI5-build. The build is also uploaded
 # as the workflow artifact `cap2ui5-web`.
 #
 # Runs event-driven on every push to main. That includes the trigger
@@ -11,15 +11,15 @@ name: build web
 # change), so the site follows every cap2UI5 update — plus changes to the
 # build tooling itself. The weekly cron remains as a safety net.
 #
-# The built site is pushed to the `main` branch of cap2UI5/web-cap2UI5-built
+# The built site is pushed to the `main` branch of cap2UI5/web-cap2UI5-build
 # — one commit per deployment, so `git log`/`git diff` on that repo shows
 # exactly what changed between two deployments. That push triggers the
-# `deploy pages` workflow in web-cap2UI5-built, which deploys the pushed
+# `deploy pages` workflow in web-cap2UI5-build, which deploys the pushed
 # site to GitHub Pages via GitHub Actions (Settings → Pages → Source →
 # GitHub Actions). This repo holds only the tooling.
 #
 # Cross-repo push uses an SSH deploy key: the public half is registered on
-# web-cap2UI5-built with write access, the private half is the secret
+# web-cap2UI5-build with write access, the private half is the secret
 # BUILT_DEPLOY_KEY here.
 
 on:
@@ -50,20 +50,20 @@ jobs:
       - name: report upstream revision
         run: echo "built from cap2UI5/cap2UI5@$(cat input/cap2UI5/UPSTREAM_COMMIT)" >> "$GITHUB_STEP_SUMMARY"
       # Publish the exact files that make up the site to the main branch of
-      # cap2UI5/web-cap2UI5-built — one commit per deployment. That push
+      # cap2UI5/web-cap2UI5-build — one commit per deployment. That push
       # triggers the `deploy pages` workflow there, which deploys the site
       # to GitHub Pages via GitHub Actions, so pushing here IS the deploy.
       # Identical rebuilds (e.g. the weekly cron with no upstream change)
       # produce no commit. The `deploy-built` concurrency group serializes
       # runs, so pushes cannot race each other.
-      - name: publish built site to web-cap2UI5-built
+      - name: publish built site to web-cap2UI5-build
         if: github.ref == 'refs/heads/main'
         env:
           BUILT_DEPLOY_KEY: ${{ secrets.BUILT_DEPLOY_KEY }}
         run: |
           set -euo pipefail
           UPSTREAM=$(cat input/cap2UI5/UPSTREAM_COMMIT)
-          BUILT="$RUNNER_TEMP/web-cap2UI5-built"
+          BUILT="$RUNNER_TEMP/web-cap2UI5-build"
 
           # SSH deploy key with write access to the built repo
           mkdir -p ~/.ssh
@@ -76,7 +76,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git clone --depth 1 --branch main \
-            git@github.com:cap2UI5/web-cap2UI5-built.git "$BUILT"
+            git@github.com:cap2UI5/web-cap2UI5-build.git "$BUILT"
 
           # Replace the tracked site with the freshly built one, keeping
           # .git and .github (the built repo's own `deploy pages` workflow
@@ -95,7 +95,7 @@ jobs:
               -m "tooling: ${GITHUB_SHA}" \
               -m "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             git push origin HEAD:main
-            echo "deployed to cap2UI5/web-cap2UI5-built@main: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+            echo "deployed to cap2UI5/web-cap2UI5-build@main: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@v4
         with:

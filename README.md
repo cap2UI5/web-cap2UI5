@@ -53,22 +53,22 @@ The **build web** workflow runs on every push to `main`, weekly (Sundays
 03:00 UTC, safety net) and on demand (`workflow_dispatch`): it mirrors the
 upstream repo, builds the site, uploads it as the `cap2ui5-web` artifact
 and publishes it to the dedicated build repo
-[`cap2UI5/web-cap2UI5-built`](https://github.com/cap2UI5/web-cap2UI5-built).
+[`cap2UI5/web-cap2UI5-build`](https://github.com/cap2UI5/web-cap2UI5-build).
 
-The site is pushed to the `main` branch of `web-cap2UI5-built` — one commit
+The site is pushed to the `main` branch of `web-cap2UI5-build` — one commit
 per deployment, carrying the upstream sha, the tooling sha and a link to the
 workflow run. That push triggers the `deploy pages` workflow in
-`web-cap2UI5-built`, which deploys the pushed site to GitHub Pages via
+`web-cap2UI5-build`, which deploys the pushed site to GitHub Pages via
 GitHub Actions (Settings → Pages → **Source** → **GitHub Actions**), so
 pushing there *is* the deploy. That repo's history is the audit trail of what was actually
 deployed: `git log` lists every deployment, `git diff <old>..<new>` shows
 exactly which files changed between two of them. Identical rebuilds (e.g.
-the weekly cron without upstream changes) add no commit. `web-cap2UI5-built`
+the weekly cron without upstream changes) add no commit. `web-cap2UI5-build`
 is written only by this workflow — don't push to it by hand; this repo
 (`web-cap2UI5`) holds only the tooling.
 
 The cross-repo push uses an SSH **deploy key**: generate a keypair, register
-the public half on `web-cap2UI5-built` (Settings → Deploy keys, **Allow
+the public half on `web-cap2UI5-build` (Settings → Deploy keys, **Allow
 write access**) and store the private half here as the secret
 `BUILT_DEPLOY_KEY` (Settings → Secrets and variables → Actions). This
 mirrors the `ACTION_KEY_WEB` deploy key that cap2UI5 already uses to push
@@ -106,7 +106,7 @@ npm run serve     # local test server on http://localhost:8080
 
 `input/`, `generated/` and `dist/` are build state (gitignored) — the repo
 holds only the tooling; the built site itself lives in
-[`cap2UI5/web-cap2UI5-built`](https://github.com/cap2UI5/web-cap2UI5-built)
+[`cap2UI5/web-cap2UI5-build`](https://github.com/cap2UI5/web-cap2UI5-build)
 (its `main` branch, one commit per deployment) and is served from there via
 GitHub Pages.
 
