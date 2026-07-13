@@ -19,13 +19,13 @@
 // the UI5 bootstrap, so the interceptor is guaranteed to be in place when
 // the component fires its initial roundtrip.
 
-import z2ui5_cl_util from "./input/cap2UI5/cap2UI5/srv/z2ui5/00/03/z2ui5_cl_util.js";
-import z2ui5_cl_core_srv_draft from "./input/cap2UI5/cap2UI5/srv/z2ui5/01/01/z2ui5_cl_core_srv_draft.js";
-import z2ui5_cl_http_handler from "./input/cap2UI5/cap2UI5/srv/z2ui5/02/z2ui5_cl_http_handler.js";
+import z2ui5_cl_util from "./input/cap2UI5/core/srv/z2ui5/00/03/z2ui5_cl_util.js";
+import z2ui5_cl_core_srv_draft from "./input/cap2UI5/core/srv/z2ui5/01/01/z2ui5_cl_core_srv_draft.js";
+import z2ui5_cl_http_handler from "./input/cap2UI5/core/srv/z2ui5/02/z2ui5_cl_http_handler.js";
 import registry from "./generated/registry.mjs";
 import { createDraftStore } from "./draft-store.mjs";
 
-// 1. App classes — the generated manifest of everything under srv/samples
+// 1. App classes — the generated manifest of the bundled samples (core/srv/app/samples)
 //    plus the framework built-ins (startup app, hello world, popups).
 for (const [name, Cls] of Object.entries(registry)) {
   z2ui5_cl_util.register_app_class(name, Cls);

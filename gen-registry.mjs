@@ -6,10 +6,11 @@
 // cannot resolve computed require paths, so the browser build needs the
 // full class list at build time. This script produces it:
 //
-//   1. collect *.js class files from the framework built-ins
-//      (srv/z2ui5/02, srv/z2ui5/02/01) and the whole samples tree
-//      (srv/samples, recursive) — same order the runtime search uses,
-//      first hit per class name wins
+//   1. collect *.js class files from the framework built-ins in the
+//      vendored core (core/srv/z2ui5/02, core/srv/z2ui5/02/01), the
+//      bundled samples (core/srv/app/samples, recursive) and the app's
+//      own srv/app — same order the runtime search uses, first hit per
+//      class name wins
 //   2. smoke-require every candidate in Node and skip files that fail to
 //      load (parse errors, broken requires) — same policy as the sync
 //      pipeline's copy step, which already skips non-parsing transpiles
@@ -49,18 +50,22 @@ export function generateRegistry({ excludeFiles = new Set() } = {}) {
     // 1. framework built-ins (startup app, hello world, popups) —
     //    non-recursive on 02/ so the core modules' subfolders stay out
     ...fs
-      .readdirSync(path.join(CAP_DIR, "srv/z2ui5/02"))
+      .readdirSync(path.join(CAP_DIR, "core/srv/z2ui5/02"))
       .filter((f) => f.endsWith(".js"))
-      .map((f) => path.join(CAP_DIR, "srv/z2ui5/02", f)),
-    ...walkClassFiles(path.join(CAP_DIR, "srv/z2ui5/02/01")),
-    // 2. bundled samples, recursive (subfolders mirror upstream src/)
-    ...walkClassFiles(path.join(CAP_DIR, "srv/samples")),
+      .map((f) => path.join(CAP_DIR, "core/srv/z2ui5/02", f)),
+    ...walkClassFiles(path.join(CAP_DIR, "core/srv/z2ui5/02/01")),
+    // 2. bundled samples, recursive (flattened by the core build)
+    ...walkClassFiles(path.join(CAP_DIR, "core/srv/app/samples")),
+    // 3. the app's own custom apps (srv/app) — server-only classes like
+    //    z2ui5_cl_app_read_odata fail the smoke-require (@sap/cds) and are
+    //    reported as skipped, same as at runtime without a server
+    ...walkClassFiles(path.join(CAP_DIR, "srv/app")),
   ];
 
-  // The require anchor sits inside the CAP package so the samples'
-  // require("abap2UI5/...") self-references resolve via its package.json
-  // exports map.
-  const capRequire = createRequire(path.join(CAP_DIR, "package.json"));
+  // The require anchor sits inside the core package (npm name `abap2UI5`)
+  // so the samples' require("abap2UI5/...") self-references resolve via its
+  // package.json exports map.
+  const capRequire = createRequire(path.join(CAP_DIR, "core", "package.json"));
 
   const entries = new Map(); // className → absolute file path
   const skipped = [];

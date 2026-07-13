@@ -7,7 +7,7 @@ name: build web
 #
 # Runs event-driven on every push to main. That includes the trigger
 # commits cap2UI5's sync pipeline pushes here via deploy key (its
-# 7_trigger_web workflow updates UPSTREAM_HEAD after each upstream
+# trigger_web workflow updates UPSTREAM_HEAD after each upstream
 # change), so the site follows every cap2UI5 update — plus changes to the
 # build tooling itself. The weekly cron remains as a safety net.
 #

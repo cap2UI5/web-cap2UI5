@@ -1,6 +1,6 @@
-# web-cap2UI5
+# builder-cap2UI5-web
 
-[![build web](https://github.com/cap2UI5/web-cap2UI5/actions/workflows/build.yml/badge.svg)](https://github.com/cap2UI5/web-cap2UI5/actions/workflows/build.yml)
+[![build web](https://github.com/cap2UI5/builder-cap2UI5-web/actions/workflows/build.yml/badge.svg)](https://github.com/cap2UI5/builder-cap2UI5-web/actions/workflows/build.yml)
 
 Runs the complete [cap2UI5](https://github.com/cap2UI5/cap2UI5) stack
 **inside the browser**: the unchanged UI5 frontend plus the whole backend
@@ -25,7 +25,7 @@ Start a specific app exactly like on the CAP server:
 Browser
 ├── index.html            unchanged UI5 shell (UI5 from CDN)
 │   └── z2ui5-web.js      ← loaded BEFORE the UI5 bootstrap
-├── Component.js, core/…  unchanged webapp (1:1 from cap2UI5/app/z2ui5)
+├── Component.js, core/…  unchanged webapp (1:1 from the app repo's app/z2ui5)
 │
 │   the webapp still calls fetch("/rest/root/z2ui5", {method: "POST", …})
 │   like it always does — but z2ui5-web.js has patched globalThis.fetch:
@@ -33,7 +33,7 @@ Browser
 └── z2ui5-web.js (bundle)
     ├── fetch interceptor  POST/HEAD to */rest/root/z2ui5 → in-process call,
     │                      everything else → native fetch
-    ├── z2ui5_cl_http_handler + core (srv/z2ui5, CAP-free)
+    ├── z2ui5_cl_http_handler + core (core/srv/z2ui5, CAP-free)
     ├── all sample apps + built-ins (static registry, generated at build time)
     └── in-memory draft store (Map — the tab IS the session)
 ```
@@ -65,7 +65,7 @@ deployed: `git log` lists every deployment, `git diff <old>..<new>` shows
 exactly which files changed between two of them. Identical rebuilds (e.g.
 the weekly cron without upstream changes) add no commit. `web-cap2UI5-build`
 is written only by this workflow — don't push to it by hand; this repo
-(`web-cap2UI5`) holds only the tooling.
+(`builder-cap2UI5-web`) holds only the tooling.
 
 The cross-repo push uses an SSH **deploy key**: generate a keypair, register
 the public half on `web-cap2UI5-build` (Settings → Deploy keys, **Allow
@@ -74,19 +74,18 @@ write access**) and store the private half here as the secret
 mirrors the `ACTION_KEY_WEB` deploy key that cap2UI5 already uses to push
 here.
 
-Upstream changes arrive event-driven: after every update, the
-`7_trigger_web` step of the sync pipeline in
-[cap2UI5](https://github.com/cap2UI5/cap2UI5) writes the upstream sha to
-`UPSTREAM_HEAD` and pushes it here via a deploy key registered on this
-repository with write access (private half: secret `ACTION_KEY_WEB` in
-cap2UI5) — that push starts this workflow. So the site follows every
-cap2UI5 change instead of waiting for the weekly cron.
+Upstream changes arrive event-driven: after every published app build, the
+`trigger_web` workflow in [cap2UI5](https://github.com/cap2UI5/cap2UI5)
+writes the upstream sha to `UPSTREAM_HEAD` and pushes it here via a deploy
+key registered on this repository with write access (private half: secret
+`ACTION_KEY_WEB` in cap2UI5) — that push starts this workflow. So the site
+follows every cap2UI5 change instead of waiting for the weekly cron.
 
 Locally:
 
 ```bash
 npm install
-npm run mirror    # snapshot cap2UI5/cap2UI5 → input/cap2UI5/
+npm run mirror    # snapshot the cap2UI5 app repo → input/cap2UI5/
                   # (MIRROR_SOURCE=/path/to/checkout uses a local copy)
 npm run build     # → dist/ (fully static site)
 npm run serve     # local test server on http://localhost:8080
