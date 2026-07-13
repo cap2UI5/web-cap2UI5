@@ -27,11 +27,11 @@ const BUNDLE_NAME = "z2ui5-web.js";
 // ---- 1. + 2. registry & bundle ---------------------------------------------
 
 // The samples reference the framework by package name
-// (require("abap2UI5/z2ui5_cl_util")) — a self-reference resolved through
-// cap2UI5/package.json's exports map. Every export maps a class name onto
-// the file with the same basename, so resolving by basename over srv/z2ui5
-// is equivalent and keeps the build independent of bundler support for
-// package self-references.
+// (require("abap2UI5/z2ui5_cl_util")) — resolved through the vendored core
+// package's exports map (core/package.json, npm name `abap2UI5`). Every
+// export maps a class name onto the file with the same basename, so
+// resolving by basename over core/srv is equivalent and keeps the build
+// independent of bundler support for package (self-)references.
 const frameworkFiles = new Map(); // basename → absolute path
 (function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -42,16 +42,18 @@ const frameworkFiles = new Map(); // basename → absolute path
       if (!frameworkFiles.has(name)) frameworkFiles.set(name, p);
     }
   }
-})(path.join(CAP_DIR, "srv", "z2ui5"));
+})(path.join(CAP_DIR, "core", "srv"));
 
 const abap2ui5SelfReference = {
   name: "abap2ui5-self-reference",
   setup(build) {
     build.onResolve({ filter: /^abap2UI5(\/|$)/ }, (args) => {
       const subpath = args.path === "abap2UI5" ? "z2ui5_cl_util" : args.path.slice("abap2UI5/".length);
-      const resolved = frameworkFiles.get(subpath);
+      // exports map subpaths are flat class names; for the path-shaped
+      // "./app/*" exports the basename is the class name, too
+      const resolved = frameworkFiles.get(subpath) || frameworkFiles.get(subpath.split("/").pop());
       if (!resolved) {
-        return { errors: [{ text: `abap2UI5 self-reference "${args.path}" has no matching file under srv/z2ui5` }] };
+        return { errors: [{ text: `abap2UI5 reference "${args.path}" has no matching file under core/srv` }] };
       }
       return { path: resolved };
     });

@@ -4,9 +4,11 @@
 //   node mirror.mjs                          # shallow-clone from GitHub
 //   MIRROR_SOURCE=/path/to/cap2UI5 node …    # copy a local checkout instead
 //
-// Only the CAP project subfolder (cap2UI5/) is kept — that is all the build
-// reads. UPSTREAM_COMMIT records the mirrored revision for traceability
-// (same convention as the input/ snapshots in the cap2UI5 dev repo).
+// Since the cap2UI5 repo split, the repo root IS the deployable app (with
+// the framework vendored at core/), so the whole checkout is mirrored
+// (minus .git / node_modules / .github). UPSTREAM_COMMIT records the
+// mirrored revision for traceability (same convention as the run/input
+// snapshots in the builder repos).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,10 +21,13 @@ const UPSTREAM = "https://github.com/cap2UI5/cap2UI5";
 function copyProject(fromRepo, commit) {
   fs.rmSync(INPUT_DIR, { recursive: true, force: true });
   fs.mkdirSync(INPUT_DIR, { recursive: true });
-  fs.cpSync(path.join(fromRepo, "cap2UI5"), path.join(INPUT_DIR, "cap2UI5"), {
-    recursive: true,
-    filter: (src) => !src.includes(`${path.sep}node_modules`) && !src.includes(`${path.sep}.git`),
-  });
+  for (const entry of fs.readdirSync(fromRepo)) {
+    if (entry === ".git" || entry === ".github" || entry === "node_modules") continue;
+    fs.cpSync(path.join(fromRepo, entry), path.join(INPUT_DIR, entry), {
+      recursive: true,
+      filter: (src) => !src.includes(`${path.sep}node_modules`) && !src.includes(`${path.sep}.git`),
+    });
+  }
   fs.writeFileSync(path.join(INPUT_DIR, "UPSTREAM_COMMIT"), `${commit}\n`);
   console.log(`mirror: cap2UI5@${commit.slice(0, 12)} → input/cap2UI5/`);
 }
