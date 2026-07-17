@@ -147,22 +147,13 @@ let html = fs.readFileSync(indexFile, "utf8");
 // at the public UI5 CDN so the shell loads standalone from any static host.
 //
 // OpenUI5 only — the proprietary SAPUI5 distribution (ui5.sap.com) must NOT
-// be used. Pin the CDN to the exact openui5-dist version the app vendors, so
-// the static site runs the same UI5 the CAP server serves locally from
-// /resources; a floating "latest" would drift against controls/APIs the
-// bundled apps were built for (that mismatch throws inside sap-ui-core at
-// control construction time).
+// be used. Use the OpenUI5 CDN entry point the framework itself defaults to
+// (z2ui5_cl_app_index_html) — sdk.openui5.org's cachebuster serves the
+// current stable OpenUI5, which is exactly what the upstream abap2UI5 web
+// samples run on. (Pinning to a specific patch is unreliable: old versions
+// like 1.113.0 are pruned from the CDN, and a 404 there leaves a blank page.)
 const BOOTSTRAP_LOCAL_SRC = 'src="/resources/sap-ui-core.js"';
-const ui5Version = (() => {
-  try {
-    const pj = JSON.parse(fs.readFileSync(path.join(CAP_DIR, "core", "package.json"), "utf8"));
-    const raw = pj.dependencies?.["openui5-dist"] || pj.devDependencies?.["openui5-dist"] || "";
-    return String(raw).replace(/[^0-9.]/g, "");
-  } catch {
-    return "";
-  }
-})();
-const UI5_CDN_SRC = `src="https://sdk.openui5.org/${ui5Version ? ui5Version + "/" : ""}resources/sap-ui-core.js"`;
+const UI5_CDN_SRC = 'src="https://sdk.openui5.org/resources/sap-ui-cachebuster/sap-ui-core.js"';
 if (html.includes(BOOTSTRAP_LOCAL_SRC)) {
   html = html.replace(BOOTSTRAP_LOCAL_SRC, UI5_CDN_SRC);
 } else if (!html.includes(UI5_CDN_SRC)) {
