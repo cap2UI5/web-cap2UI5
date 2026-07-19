@@ -176,6 +176,18 @@ fs.writeFileSync(indexFile, injected);
 // GitHub Pages: serve folders starting with _ etc. as-is.
 fs.writeFileSync(path.join(DIST, ".nojekyll"), "");
 
+// BUILD_INFO.json — deployment marker served next to the site. CI's
+// post-deploy verification polls it on the live URL to detect when the
+// Pages deploy for a given upstream revision has actually gone live.
+// Deliberately deterministic (upstream sha only, no timestamps): identical
+// rebuilds must keep producing byte-identical sites so the publish step's
+// "no change — no deploy commit" property survives.
+const upstreamCommit = fs.readFileSync(path.join(CAP_DIR, "UPSTREAM_COMMIT"), "utf8").trim();
+fs.writeFileSync(
+  path.join(DIST, "BUILD_INFO.json"),
+  JSON.stringify({ upstream_commit: upstreamCommit }, null, 2) + "\n",
+);
+
 // ---- 5. sanity-gate the shell ----------------------------------------------
 // A broken bootstrap ships silently as a blank page (UI5 never loads), so
 // assert the invariants the static shell needs before we call the build good:
