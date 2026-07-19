@@ -70,7 +70,7 @@ jobs:
         run: echo "built from cap2UI5/cap2UI5@$(cat input/cap2UI5/UPSTREAM_COMMIT)" >> "$GITHUB_STEP_SUMMARY"
       # Upload before publish/verify so the built site is preserved for
       # debugging even when the deploy or the live verification fails.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cap2ui5-web
           path: dist
