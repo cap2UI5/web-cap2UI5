@@ -14,7 +14,8 @@ This is the cap2UI5 twin of
 which bundles the abaplint-transpiled ABAP sources with `@abaplint/runtime`
 and a WASM SQLite. cap2UI5's backend is already plain JavaScript, so this
 build gets away with much less: no ABAP runtime, no WASM database — the
-bundle is ~1.2 MB instead of ~12 MB.
+`z2ui5-web.js` bundle is ~880 KB minified (the whole site ~1.2 MB) instead
+of ~12 MB.
 
 Start a specific app exactly like on the CAP server:
 `index.html?app_start=z2ui5_cl_demo_app_001`.
@@ -100,6 +101,8 @@ npm run serve     # local test server on http://localhost:8080
 | `gen-registry.mjs` | scans samples + built-ins → `generated/registry.mjs` (smoke-requires every candidate, skips broken ones — same policy as the upstream sync pipeline) |
 | `build.mjs` | esbuild bundle + webapp copy + index.html patch → `dist/` |
 | `draft-store.mjs` | in-memory Map store (FIFO-bounded) |
+| `smoke.mjs` | headless-Chromium smoke suite against a served `dist/` (`npm run smoke`) |
+| `live-smoke.mjs` | same suite against the deployed Pages site (`npm run smoke:live`); used by the post-deploy verification in `build.yml` and the daily `health` workflow |
 | `stubs/` | build-time stand-ins for `@sap/cds`, `fs`, `path`, `crypto` |
 | `dev-server.mjs` | dependency-free static server for local testing |
 

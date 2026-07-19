@@ -48,11 +48,32 @@ jobs:
       - run: npm run mirror
       - run: npm run build
       # browser smoke against dist/ — a blank page (broken bootstrap, CDN
-      # 404, bundle not injected) must never reach the deploy step
-      - run: npx playwright install --with-deps chromium
+      # 404, bundle not injected) must never reach the deploy step.
+      # The Chromium download is cached, keyed on the Playwright version
+      # from package-lock.json; system deps are apt-installed either way
+      # (--with-deps covers them on a miss, install-deps alone on a hit).
+      - name: resolve playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+      - name: cache playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run smoke
       - name: report upstream revision
         run: echo "built from cap2UI5/cap2UI5@$(cat input/cap2UI5/UPSTREAM_COMMIT)" >> "$GITHUB_STEP_SUMMARY"
+      # Upload before publish/verify so the built site is preserved for
+      # debugging even when the deploy or the live verification fails.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cap2ui5-web
+          path: dist
       # Publish the exact files that make up the site to the main branch of
       # cap2UI5/web-cap2UI5-build — one commit per deployment. That push
       # triggers the `deploy pages` workflow there, which deploys the site
@@ -61,6 +82,7 @@ jobs:
       # produce no commit. The `deploy-built` concurrency group serializes
       # runs, so pushes cannot race each other.
       - name: publish built site to web-cap2UI5-build
+        id: publish
         if: github.ref == 'refs/heads/main'
         env:
           BUILT_DEPLOY_KEY: ${{ secrets.BUILT_DEPLOY_KEY }}
@@ -68,6 +90,7 @@ jobs:
           set -euo pipefail
           UPSTREAM=$(cat input/cap2UI5/UPSTREAM_COMMIT)
           BUILT="$RUNNER_TEMP/web-cap2UI5-build"
+          echo "deployed=false" >> "$GITHUB_OUTPUT"
 
           # SSH deploy key with write access to the built repo
           mkdir -p ~/.ssh
@@ -81,6 +104,16 @@ jobs:
 
           git clone --depth 1 --branch main \
             git@github.com:cap2UI5/web-cap2UI5-build.git "$BUILT"
+
+          # Will the live BUILD_INFO.json marker change with this deploy?
+          # The post-deploy verification polls the live marker for the new
+          # upstream sha — that only converges if the marker actually
+          # differs from what is deployed right now (a tooling-only deploy
+          # keeps the same upstream sha, so there is nothing to poll for).
+          MARKER_CHANGED=true
+          if [ -f "$BUILT/BUILD_INFO.json" ] && cmp -s dist/BUILD_INFO.json "$BUILT/BUILD_INFO.json"; then
+            MARKER_CHANGED=false
+          fi
 
           # Replace the tracked site with the freshly built one, keeping
           # .git and .github (the built repo's own `deploy pages` workflow
@@ -100,8 +133,43 @@ jobs:
               -m "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             git push origin HEAD:main
             echo "deployed to cap2UI5/web-cap2UI5-build@main: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "deployed=true"
+              echo "upstream=${UPSTREAM}"
+              echo "marker_changed=${MARKER_CHANGED}"
+            } >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cap2ui5-web
-          path: dist
+      # Post-deploy verification — only when something was actually pushed
+      # (the publish step commits only on change). First wait until GitHub
+      # Pages serves the freshly deployed site (poll BUILD_INFO.json on the
+      # live URL for the new upstream sha; on a tooling-only deploy the
+      # marker is unchanged, so fall back to a fixed grace period), then run
+      # the full smoke suite against the real live URL — same assertions as
+      # the dist/ smoke above, including the Pages subpath.
+      - name: verify live deployment
+        if: steps.publish.outputs.deployed == 'true'
+        env:
+          LIVE_URL: https://cap2ui5.github.io/web-cap2UI5-build
+          UPSTREAM: ${{ steps.publish.outputs.upstream }}
+          MARKER_CHANGED: ${{ steps.publish.outputs.marker_changed }}
+        run: |
+          set -euo pipefail
+          if [ "$MARKER_CHANGED" = "true" ]; then
+            echo "waiting for the Pages deploy to serve upstream ${UPSTREAM} (polling ${LIVE_URL}/BUILD_INFO.json, timeout 10 min)…"
+            deadline=$(( $(date +%s) + 600 ))
+            while :; do
+              live=$(curl -fsS --max-time 20 "${LIVE_URL}/BUILD_INFO.json?nocache=$(date +%s)" || true)
+              case "$live" in *"$UPSTREAM"*) break ;; esac
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "::error::Pages deploy did not go live within 10 min — ${LIVE_URL}/BUILD_INFO.json still lacks upstream ${UPSTREAM}. Check the 'deploy pages' workflow in cap2UI5/web-cap2UI5-build."
+                exit 1
+              fi
+              sleep 15
+            done
+            echo "Pages deploy is live (upstream ${UPSTREAM})"
+          else
+            echo "BUILD_INFO.json unchanged (tooling-only deploy) — no marker to poll; giving Pages a 90 s grace period"
+            sleep 90
+          fi
+          SMOKE_URL="${LIVE_URL}/" node live-smoke.mjs
+          echo "live smoke OK against ${LIVE_URL}/" >> "$GITHUB_STEP_SUMMARY"
