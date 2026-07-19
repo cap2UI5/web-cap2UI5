@@ -1,0 +1,49 @@
+name: health
+
+# Daily live-site health check: runs the full browser smoke suite
+# (live-smoke.mjs — same assertions as the pre-deploy dist/ smoke) against
+# the deployed GitHub Pages site https://cap2ui5.github.io/web-cap2UI5-build/.
+#
+# Why: the UI5 bootstrap is deliberately unpinned on the current stable
+# OpenUI5 CDN release (old patch versions get pruned from the CDN, and a
+# 404 there ships a blank page — see build.mjs). A new OpenUI5 release can
+# therefore break the live site *between* deployments, where build.yml's
+# post-deploy verification never looks. This cron catches that within a day.
+#
+# 06:30 UTC — after the upstream nightly pipelines and well clear of the
+# weekly Sunday 03:00 build. A red run IS the signal; nothing is deployed
+# or pushed here.
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      # Chromium cached on the Playwright version (same pattern as build.yml)
+      - name: resolve playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+      - name: cache playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: live smoke against the deployed site
+        run: node live-smoke.mjs
